@@ -9,8 +9,8 @@ import 'package:file_picker/file_picker.dart';
 class MainPage extends ConsumerWidget {
 
   const MainPage({
-    Key? key
-  }) : super(key: key);
+    super.key
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

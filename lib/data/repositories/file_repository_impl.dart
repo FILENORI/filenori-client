@@ -1,8 +1,6 @@
 import 'dart:io';
-import 'package:path/path.dart' as p;
 
 import 'package:filenori_client/domain/entities/file_entity.dart';
-import 'package:filenori_client/domain/entities/piece_entity.dart';
 import 'package:filenori_client/domain/repositories/file_repository.dart';
 import 'package:filenori_client/data/services/local_file_service.dart';
 import 'package:filenori_client/data/services/network_service.dart';

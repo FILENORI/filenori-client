@@ -9,7 +9,7 @@ class LocalFileService {
   Future<FileEntity> createFileEntityFromLocalPath(File file) async {
     final fileName = p.basename(file.path);
     final fileSize = await file.length();
-    final pieceSize = 1024 * 1024;
+    const pieceSize = 1024 * 1024;
 
     final pieces = <PieceEntity>[];
     final raf = file.openSync(mode: FileMode.read);
