@@ -39,32 +39,45 @@ class NetworkService {
     try {
       final socket = await _getSocket();
 
-      // JSON 형태로 데이터 준비 (base64 인코딩 사용)
-      final jsonData = {
+      print("Send start");
+
+      // JSON 형태로 메타데이터 준비
+      final metadata = {
         'action': 'upload',
         'file_name': fileName,
         'piece_index': pieceIndex,
         'file_size': data.length,
-        'file_type': fileName.split('.').last.toLowerCase(),  // 파일 확장자 추가
-        'content': data
       };
 
-      // JSON 데이터를 문자열로 변환하고 전송
-      final jsonString = jsonEncode(jsonData);
-      socket.write(jsonString);
-
-      // 서버 응답 대기
+      // 메타데이터 전송
+      final metadataJson = jsonEncode(metadata);
+      socket.write(metadataJson + "\n");
       await socket.flush();
-      
-      // 타임아웃과 함께 응답 대기
+      print("Metadata sent");
+
+      // 파일 데이터 전송
+      socket.add(data);
+      await socket.flush();
+      print("All data sent to server");
+
+      // 서버 응답 처리
       final completer = Completer<String>();
       late StreamSubscription subscription;
-      
+
       subscription = socket.listen(
-        (data) {
-          final responseStr = utf8.decode(data);
-          if (!completer.isCompleted) {
-            completer.complete(responseStr);
+        (response) {
+          final responseStr = utf8.decode(response);
+          print('Raw response: $responseStr');
+
+          if (responseStr.contains("<END>")) {
+            final responseData = responseStr.split('<END>')[0];
+            if (!completer.isCompleted) {
+              completer.complete(responseData);
+            }
+          } else {
+            if (!completer.isCompleted) {
+              completer.complete(responseStr);
+            }
           }
         },
         onError: (error) {
@@ -72,24 +85,25 @@ class NetworkService {
             completer.completeError(error);
           }
         },
-        cancelOnError: true
+        cancelOnError: true,
       );
 
       try {
         final responseStr = await completer.future.timeout(
-          Duration(seconds: 5),
+          Duration(seconds: 10),
           onTimeout: () {
             throw TimeoutException('Server response timeout');
           },
         );
         subscription.cancel();
-        
-        print('Server response: $responseStr');
+
+        print("Server response: $responseStr");
 
         if (responseStr.contains('OK')) {
+          print("File $fileName (piece $pieceIndex) uploaded successfully.");
           return true;
         } else {
-          print('Upload failed: $responseStr');
+          print("Upload failed: $responseStr");
           return false;
         }
       } finally {
@@ -97,8 +111,7 @@ class NetworkService {
       }
     } catch (e, st) {
       print('Upload error: $e\n$st');
-      // 에러 발생시 소켓 재설정
-      await dispose();
+      await dispose(); // 소켓을 재설정
       return false;
     }
   }
