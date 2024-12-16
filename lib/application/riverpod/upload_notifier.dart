@@ -47,16 +47,16 @@ class UploadNotifier extends StateNotifier<UploadState> {
       // 파일 조각화 & 업로드
       final fileEntity = await uploadFileUseCase(file);
 
-      // 업로드 완료 후, 조각 중 업로드된 개수를 계산
-      final totalPieces = fileEntity.pieces.length;
-      final uploadedCount = fileEntity.pieces.where((p) => p.isUploaded).length;
-      final progress = (uploadedCount / totalPieces);
+      // // 업로드 완료 후, 조각 중 업로드된 개수를 계산
+      // final totalPieces = fileEntity.pieces.length;
+      // final uploadedCount = fileEntity.pieces.where((p) => p.isUploaded).length;
+      // final progress = (uploadedCount / totalPieces);
 
-      state = state.copyWith(
-        isUploading: false,
-        progress: progress,
-        fileEntity: fileEntity,
-      );
+      // state = state.copyWith(
+      //   isUploading: false,
+      //   progress: progress,
+      //   fileEntity: fileEntity,
+      // );
     } catch (e) {
       state = state.copyWith(
         isUploading: false,

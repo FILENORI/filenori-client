@@ -20,15 +20,17 @@ class FileRepositoryImpl implements FileRepository {
   }
 
   @override
-  Future<FileEntity> uploadFilePieces(FileEntity fileEntity) async {
-    for (final piece in fileEntity.pieces) {
-      await networkService.uploadPiece(
-        fileName: fileEntity.fileName,
-        pieceIndex: piece.index,
-        data: piece.data,
-      );
-    }
-    return fileEntity.copyWith(
-      pieces: fileEntity.pieces.map((piece) => piece.copyWith(isUploaded: true)).toList(),);
+  Future<void> uploadFilePieces(File file) async {
+    // final fileEntity = await createFileEntity(file);
+    // for (final piece in fileEntity.pieces) {
+    //   await networkService.uploadPiece(
+    //     fileName: fileEntity.fileName,
+    //     pieceIndex: piece.index,
+    //     data: piece.data,
+    //   );
+    // }
+    // return fileEntity.copyWith(
+    //   pieces: fileEntity.pieces.map((piece) => piece.copyWith(isUploaded: true)).toList(),);
+    await networkService.uploadPiece(fileName: file.path, pieceIndex: 0, data: file);
   }
 }
