@@ -10,18 +10,40 @@ import 'package:path_provider/path_provider.dart';
 class NetworkService {
   Socket? _socket;
   bool _isSocketClosed = true;
-  
+  StreamSubscription? _subscription;
+  final _responseController = StreamController<String>.broadcast();
+
   Future<Socket> _getSocket() async {
     if (_socket == null || _isSocketClosed) {
       _socket = await Socket.connect(
         dotenv.get('SERVER_URI', fallback: 'localhost'),
         int.parse(dotenv.get('SERVER_PORT', fallback: '12345')),
-        // '0.tcp.jp.ngrok.io',
-        // 10431,
       );
       _isSocketClosed = false;
-      _socket!.done.then((_) => _isSocketClosed = true);
+      _socket!.done.then((_) {
+        _isSocketClosed = true;
+        _subscription?.cancel();
+        _subscription = null;
+      });
       print('Connected to: ${_socket!.remoteAddress}:${_socket!.remotePort}');
+
+      // 소켓 응답 리스너 설정
+      _subscription?.cancel();
+      _subscription = _socket!.listen(
+        (response) {
+          final responseStr = utf8.decode(response);
+          print('Raw response: $responseStr');
+          if (responseStr.contains("<END>")) {
+            final responseData = responseStr.split('<END>')[0];
+            _responseController.add(responseData);
+          }
+        },
+        onError: (error) {
+          print('Socket error: $error');
+          _responseController.addError(error);
+        },
+        cancelOnError: false,
+      );
     }
     return _socket!;
   }
@@ -34,7 +56,21 @@ class NetworkService {
     }
   }
 
-  // TODO: List<int> -> PieceEntity
+  Future<String> _waitForResponse(Socket socket) async {
+    try {
+      final response = await _responseController.stream.first.timeout(
+        Duration(seconds: 5),
+        onTimeout: () {
+          throw TimeoutException('Server response timeout');
+        },
+      );
+      return response;
+    } catch (e) {
+      print('Wait for response error: $e');
+      rethrow;
+    }
+  }
+
   Future<bool> uploadPiece({
     required String fileName,
     required int pieceIndex,
@@ -42,8 +78,6 @@ class NetworkService {
   }) async {
     try {
       final socket = await _getSocket();
-
-      print("Send start");
 
       // JSON 형태로 메타데이터 준비
       final metadata = {
@@ -55,111 +89,39 @@ class NetworkService {
 
       // 메타데이터 전송
       final metadataJson = jsonEncode(metadata);
-      socket.write(metadataJson + "<END>");
-      print("Metadata sent");
-      final completerMeta = Completer<bool>();
-      final subscriptionMeta = socket.listen(
-        (response) {
-          // 수신된 데이터를 UTF-8로 디코딩
-          final responseStr = utf8.decode(response);
-          print('Raw response: $responseStr');
-
-          // 특정 응답 확인 (<END> 포함 여부로 판단)
-          if (responseStr.contains("<END>")) {
-            final responseData = responseStr.split('<END>')[0];
-            print('Processed response: $responseData');
-
-            // JSON으로 파싱 후 성공 여부 판단
-            try {
-              final responseJson = jsonDecode(responseData);
-              if (responseJson['status'] == 'success') {
-                completerMeta.complete(true);
-              } else {
-                completerMeta.complete(false);
-              }
-            } catch (e) {
-              print('Failed to parse response: $e');
-              completerMeta.complete(false);
-            }
-          }
-        },
-        onError: (error) {
-          print('Error during response: $error');
-          completerMeta.complete(false);
-        },
-        onDone: () {
-          print('Server connection closed');
-          if (!completerMeta.isCompleted) {
-            completerMeta.complete(false);
-          }
-        },
-        cancelOnError: true,
-      );
+      socket.write(metadataJson);
+      await socket.flush();
+      print("Metadata sent: $metadataJson");
 
       // 메타데이터 응답 대기
       final metadataResponse = await _waitForResponse(socket);
-      // if (!metadataResponse.contains('OK')) {
-      //   throw Exception('Metadata upload failed: $metadataResponse');
-      // }
       print("Metadata response received: $metadataResponse");
 
-      // 파일 데이터 전송
-      socket.add(data);
+      if (!metadataResponse.contains('OK')) {
+        print('Metadata upload failed: $metadataResponse');
+        return false;
+      }
 
+      final fileStream = data.openRead();
+      await for (var chunk in fileStream) {
+        socket.add(chunk);
+        await socket.flush();
+      }
+      socket.add(utf8.encode("<END>"));
+
+      // 전송 완료 표시
+      socket.write("<END>");
+      await socket.flush();
       print("All data sent to server");
 
-      // 서버 응답 처리
-      final completer = Completer<String>();
-      late StreamSubscription subscription;
+      // 파일 전송 응답 대기
+      final uploadResponse = await _waitForResponse(socket);
+      print("Upload response received: $uploadResponse");
 
-      subscription = socket.listen(
-        (response) {
-          final responseStr = utf8.decode(response);
-          print('Raw response: $responseStr');
-
-          if (responseStr.contains("<END>")) {
-            final responseData = responseStr.split('<END>')[0];
-            if (!completer.isCompleted) {
-              completer.complete(responseData);
-            }
-          } else {
-            if (!completer.isCompleted) {
-              completer.complete(responseStr);
-            }
-          }
-        },
-        onError: (error) {
-          if (!completer.isCompleted) {
-            completer.completeError(error);
-          }
-        },
-        cancelOnError: true,
-      );
-
-      try {
-        final responseStr = await completer.future.timeout(
-          Duration(seconds: 10),
-          onTimeout: () {
-            throw TimeoutException('Server response timeout');
-          },
-        );
-        subscription.cancel();
-
-        print("Server response: $responseStr");
-
-        if (responseStr.contains('OK')) {
-          print("File $fileName (piece $pieceIndex) uploaded successfully.");
-          return true;
-        } else {
-          print("Upload failed: $responseStr");
-          return false;
-        }
-      } finally {
-        subscription.cancel();
-      }
+      return uploadResponse.contains('OK');
     } catch (e, st) {
       print('Upload error: $e\n$st');
-      await dispose(); // 소켓을 재설정
+      await dispose();
       return false;
     }
   }
@@ -178,45 +140,10 @@ class NetworkService {
       final fileList = jsonDecode(response) as List<dynamic>;
       final files = fileList.map((file) => File(file as String)).toList();
       return files;
-      } catch (e) {
-        print('Error occurred: $e');
+    } catch (e) {
+      print('Error occurred: $e');
       await dispose(); // 소켓을 재설정
       return [];
     }
   }
 }
-
-Future<String> _waitForResponse(Socket socket) async {
-        final completer = Completer<String>();
-        late StreamSubscription subscription;
-      
-        subscription = socket.listen(
-          (response) {
-            final responseStr = utf8.decode(response);
-            if (responseStr.contains("<END>")) {
-              final responseData = responseStr.split('<END>')[0];
-              if (!completer.isCompleted) {
-                completer.complete(responseData);
-              }
-            }
-          },
-          onError: (error) {
-            if (!completer.isCompleted) {
-              completer.completeError(error);
-            }
-          },
-          cancelOnError: true,
-        );
-      
-        try {
-          final response = await completer.future.timeout(
-            Duration(seconds: 5),
-            onTimeout: () {
-              throw TimeoutException('Server response timeout');
-            },
-          );
-          return response;
-        } finally {
-          subscription.cancel();
-        }
-      }
