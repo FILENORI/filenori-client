@@ -57,7 +57,7 @@ class NetworkService {
   Future<String> _waitForResponse(Socket socket) async {
     try {
       final response = await _responseController.stream.first.timeout(
-        Duration(seconds: 5),
+        Duration(seconds: 30),
         onTimeout: () {
           throw TimeoutException('Server response timeout');
         },
@@ -77,12 +77,15 @@ class NetworkService {
     try {
       final socket = await _getSocket();
 
+      // 파일 데이터를 한 번에 읽기
+      final bytes = await data.readAsBytes();
+
       // JSON 형태로 메타데이터 준비
       final metadata = {
         'action': 'upload',
         'file_name': fileName,
         'piece_index': pieceIndex,
-        'file_size': data.lengthSync(),
+        'file_size': bytes.length,
       };
 
       // 메타데이터 전송
@@ -91,26 +94,21 @@ class NetworkService {
       await socket.flush();
       print("Metadata sent: $metadataJson");
 
-      // 메타데이터 응답 대기
-      final metadataResponse = await _waitForResponse(socket);
-      print("Metadata response received: $metadataResponse");
+      // // 메타데이터 응답 대기
+      // final metadataResponse = await _waitForResponse(socket);
+      // print("Metadata response received: $metadataResponse");
 
-      if (!metadataResponse.contains('OK')) {
-        print('Metadata upload failed: $metadataResponse');
-        return false;
-      }
+      // if (!metadataResponse.contains('OK')) {
+      //   print('Metadata upload failed: $metadataResponse');
+      //   return false;
+      // }
 
-      final fileStream = data.openRead();
-      await for (var chunk in fileStream) {
-        socket.add(chunk);
-        await socket.flush();
-      }
-      socket.add(utf8.encode("<END>"));
-
-      // 전송 완료 표시
-      socket.write("<END>");
-      await socket.flush();
-      print("All data sent to server");
+      // // 파일 데이터 한 번에 전송
+      // socket.add(bytes);
+      // await socket.flush();
+      // // socket.write("<END>");
+      // // await socket.flush();
+      // print("All data sent to server");
 
       // 파일 전송 응답 대기
       final uploadResponse = await _waitForResponse(socket);

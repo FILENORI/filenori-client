@@ -18,80 +18,170 @@ class MainPage extends HookConsumerWidget {
     final selectedFiles = useState<Set<String>>({});
 
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('FileNori'),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'FILENORI',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Colors.black87,
+            letterSpacing: 1.2,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.black87),
+            onPressed: () {
+              ref.read(fileViewModelProvider.notifier).refreshFileList();
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: () async {
-                    final result = await FilePicker.platform.pickFiles(
-                      allowMultiple: false,
-                    );
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.grey[300]!),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[700],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      icon: const Icon(Icons.upload_file),
+                      label: const Text('파일 업로드'),
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          allowMultiple: false,
+                        );
 
-                    if (result != null && result.files.isNotEmpty) {
-                      final selectedFilePath = result.files.single.path;
-                      if (selectedFilePath != null) {
-                        print(selectedFilePath);
-                        ref.read(fileViewModelProvider.notifier).uploadFile(selectedFilePath);
-                      }
-                    }
-                  },
-                  child: const Text('파일 업로드'),
-                ),
-                const SizedBox(width: 16),
-                if (uploadState.isUploading)
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: uploadState.progress,
+                        if (result != null && result.files.isNotEmpty) {
+                          final selectedFilePath = result.files.single.path;
+                          if (selectedFilePath != null) {
+                            print(selectedFilePath);
+                            ref.read(fileViewModelProvider.notifier).uploadFile(selectedFilePath);
+                          }
+                        }
+                      },
                     ),
-                  ),
-              ],
+                    const SizedBox(width: 16),
+                    if (uploadState.isUploading)
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '업로드 중... ${(uploadState.progress * 100).toStringAsFixed(1)}%',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            LinearProgressIndicator(
+                              value: uploadState.progress,
+                              backgroundColor: Colors.grey[200],
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue[700]!),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
-            const SizedBox(height: 16),
-            Divider(color: Colors.grey),
-            const SizedBox(height: 16),
-            Text('서버에 등록된 파일'),
+            const SizedBox(height: 24),
+            Text(
+              '서버에 등록된 파일',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               child: files.isEmpty
-                  ? const Center(child: Text('서버에 등록된 파일이 없습니다.'))
-                  : ListView.builder(
-                      itemCount: files.length,
-                      itemBuilder: (context, index) {
-                        final file = files[index];
-                        final isSelected = selectedFiles.value.contains(file.filePath);
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.folder_open, size: 48, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            '서버에 등록된 파일이 없습니다.',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.grey[300]!),
+                      ),
+                      child: ListView.separated(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: files.length,
+                        separatorBuilder: (context, index) => Divider(height: 1, color: Colors.grey[300]),
+                        itemBuilder: (context, index) {
+                          final file = files[index];
+                          final isSelected = selectedFiles.value.contains(file.filePath);
 
-                        return ListTile(
-                          leading: Checkbox(
-                            value: isSelected,
-                            onChanged: (bool? value) {
-                              if (value == true) {
-                                selectedFiles.value = {...selectedFiles.value, file.filePath};
-                              } else {
-                                selectedFiles.value = {...selectedFiles.value}..remove(file.filePath);
-                              }
-                            },
-                          ),
-                          title: Text(file.fileName),
-                          subtitle: Text('${(file.fileSize / 1024 / 1024).toStringAsFixed(2)} MB'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.download),
-                                onPressed: () {
-                                  ref.read(fileViewModelProvider.notifier).downloadFile(file.filePath);
-                                },
+                          return ListTile(
+                            leading: Icon(
+                              Icons.insert_drive_file,
+                              color: Colors.blue[700],
+                            ),
+                            title: Text(
+                              file.fileName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
                               ),
-                            ],
-                          ),
-                        );
-                      },
+                            ),
+                            subtitle: Text(
+                              '${(file.fileSize).toStringAsFixed(2)} MB',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    Icons.download,
+                                    color: Colors.grey[600],
+                                  ),
+                                  onPressed: () {
+                                    // ref.read(fileViewModelProvider.notifier).downloadFile(file.filePath);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
             ),
           ],
