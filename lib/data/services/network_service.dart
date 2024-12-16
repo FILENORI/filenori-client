@@ -16,6 +16,8 @@ class NetworkService {
       _socket = await Socket.connect(
         dotenv.get('SERVER_URI', fallback: 'localhost'),
         int.parse(dotenv.get('SERVER_PORT', fallback: '12345')),
+        // '0.tcp.jp.ngrok.io',
+        // 10431,
       );
       _isSocketClosed = false;
       _socket!.done.then((_) => _isSocketClosed = true);
@@ -36,7 +38,7 @@ class NetworkService {
   Future<bool> uploadPiece({
     required String fileName,
     required int pieceIndex,
-    required List<int> data,
+    required File data,
   }) async {
     try {
       final socket = await _getSocket();
@@ -48,7 +50,7 @@ class NetworkService {
         'action': 'upload',
         'file_name': fileName,
         'piece_index': pieceIndex,
-        'file_size': data.length,
+        'file_size': data.lengthSync(),
       };
 
       // 메타데이터 전송
@@ -94,8 +96,16 @@ class NetworkService {
         cancelOnError: true,
       );
 
+      // 메타데이터 응답 대기
+      final metadataResponse = await _waitForResponse(socket);
+      // if (!metadataResponse.contains('OK')) {
+      //   throw Exception('Metadata upload failed: $metadataResponse');
+      // }
+      print("Metadata response received: $metadataResponse");
+
       // 파일 데이터 전송
       socket.add(data);
+
       print("All data sent to server");
 
       // 서버 응답 처리
@@ -153,4 +163,60 @@ class NetworkService {
       return false;
     }
   }
+
+  Future<List<File>> getFileList() async {
+    try {
+      final socket = await _getSocket();
+      final requestJson = jsonEncode({
+        'action': 'list_files',
+      });
+
+      socket.write(requestJson + "\n");
+      await socket.flush();
+
+      final response = await _waitForResponse(socket);
+      final fileList = jsonDecode(response) as List<dynamic>;
+      final files = fileList.map((file) => File(file as String)).toList();
+      return files;
+      } catch (e) {
+        print('Error occurred: $e');
+      await dispose(); // 소켓을 재설정
+      return [];
+    }
+  }
 }
+
+Future<String> _waitForResponse(Socket socket) async {
+        final completer = Completer<String>();
+        late StreamSubscription subscription;
+      
+        subscription = socket.listen(
+          (response) {
+            final responseStr = utf8.decode(response);
+            if (responseStr.contains("<END>")) {
+              final responseData = responseStr.split('<END>')[0];
+              if (!completer.isCompleted) {
+                completer.complete(responseData);
+              }
+            }
+          },
+          onError: (error) {
+            if (!completer.isCompleted) {
+              completer.completeError(error);
+            }
+          },
+          cancelOnError: true,
+        );
+      
+        try {
+          final response = await completer.future.timeout(
+            Duration(seconds: 5),
+            onTimeout: () {
+              throw TimeoutException('Server response timeout');
+            },
+          );
+          return response;
+        } finally {
+          subscription.cancel();
+        }
+      }

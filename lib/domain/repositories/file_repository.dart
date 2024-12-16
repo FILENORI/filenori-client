@@ -6,5 +6,7 @@ abstract class FileRepository {
   Future<FileEntity> createFileEntity(File file);
 
   /// [File]의 조각들을 업로드 후, 업로드 상태를 반영한 새 [File]를 반환
-  Future<FileEntity> uploadFilePieces(FileEntity fileEntity);
+  // Future<FileEntity> uploadFilePieces(FileEntity fileEntity);
+  Future<void> uploadFilePieces(File file);
+  Future<List<File>> getFileList();
 }

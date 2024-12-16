@@ -1,4 +1,5 @@
 // lib/application/riverpod/providers.dart
+import 'package:filenori_client/domain/usecases/get_filelist_usecase.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:filenori_client/data/repositories/file_repository_impl.dart';
 import 'package:filenori_client/data/services/local_file_service.dart';
@@ -26,6 +27,12 @@ final fileRepositoryProvider = Provider<FileRepository>((ref) {
 // 3. UseCase
 final uploadFileUseCaseProvider = Provider<UploadFileUseCase>((ref) {
   return UploadFileUseCase(
+    ref.watch(fileRepositoryProvider),
+  );
+});
+
+final getFileListUseCaseProvider = Provider<GetFileListUseCase>((ref) {
+  return GetFileListUseCase(
     ref.watch(fileRepositoryProvider),
   );
 });
