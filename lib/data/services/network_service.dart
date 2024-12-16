@@ -4,6 +4,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:filenori_client/domain/entities/piece_entity.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:path_provider/path_provider.dart';
 
 class NetworkService {
   Socket? _socket;
@@ -53,9 +55,46 @@ class NetworkService {
 
       // 메타데이터 전송
       final metadataJson = jsonEncode(metadata);
-      socket.write(metadataJson + "\n");
-      await socket.flush();
+      socket.write(metadataJson + "<END>");
       print("Metadata sent");
+      final completerMeta = Completer<bool>();
+      final subscriptionMeta = socket.listen(
+        (response) {
+          // 수신된 데이터를 UTF-8로 디코딩
+          final responseStr = utf8.decode(response);
+          print('Raw response: $responseStr');
+
+          // 특정 응답 확인 (<END> 포함 여부로 판단)
+          if (responseStr.contains("<END>")) {
+            final responseData = responseStr.split('<END>')[0];
+            print('Processed response: $responseData');
+
+            // JSON으로 파싱 후 성공 여부 판단
+            try {
+              final responseJson = jsonDecode(responseData);
+              if (responseJson['status'] == 'success') {
+                completerMeta.complete(true);
+              } else {
+                completerMeta.complete(false);
+              }
+            } catch (e) {
+              print('Failed to parse response: $e');
+              completerMeta.complete(false);
+            }
+          }
+        },
+        onError: (error) {
+          print('Error during response: $error');
+          completerMeta.complete(false);
+        },
+        onDone: () {
+          print('Server connection closed');
+          if (!completerMeta.isCompleted) {
+            completerMeta.complete(false);
+          }
+        },
+        cancelOnError: true,
+      );
 
       // 메타데이터 응답 대기
       final metadataResponse = await _waitForResponse(socket);
@@ -65,13 +104,8 @@ class NetworkService {
       print("Metadata response received: $metadataResponse");
 
       // 파일 데이터 전송
-      final fileStream = data.openRead();
-      await for (var chunk in fileStream) {
-        socket.add(chunk);
-        await socket.flush();
-      }
-      socket.add(utf8.encode("<END>"));
-      await socket.flush();
+      socket.add(data);
+
       print("All data sent to server");
 
       // 서버 응답 처리
