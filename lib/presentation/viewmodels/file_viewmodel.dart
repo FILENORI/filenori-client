@@ -51,7 +51,16 @@ class FileViewModel extends StateNotifier<List<FileInfoState>> {
     state = state.where((f) => f.filePath != filePath).toList();
   }
 
-
+  Future<void> downloadFile(String filePath) async {
+    try {
+      final file = state.firstWhere((f) => f.filePath == filePath);
+      // TODO: 실제 다운로드 로직 구현
+      // 예: 서버에서 파일을 다운로드하고 로컬에 저장
+      print('Downloading file: ${file.fileName}');
+    } catch (e) {
+      print('Error downloading file: $e');
+    }
+  }
 }
 
 // Provider

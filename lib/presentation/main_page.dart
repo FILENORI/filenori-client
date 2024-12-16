@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:filenori_client/application/riverpod/upload_notifier.dart';
 import 'package:filenori_client/presentation/viewmodels/file_viewmodel.dart';
 
-
 import 'package:file_picker/file_picker.dart';
 
-class MainPage extends ConsumerWidget {
-
-  const MainPage({
-    super.key
-  });
+class MainPage extends HookConsumerWidget {
+  const MainPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
 
-    final files = ref.watch(fileViewModelProvider);
+    // TODO: getFileList 결과값으로 대체
+    // final files = ref.watch(fileViewModelProvider);
+    final files = [
+      FileInfoState(fileName: 'test1', filePath: 'test1', fileSize: 1024),
+    ];
     final uploadState = ref.watch(uploadNotifierProvider);
+    final selectedFiles = useState<Set<String>>({});
 
     return Scaffold(
       appBar: AppBar(
@@ -25,8 +27,8 @@ class MainPage extends ConsumerWidget {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 상단 버튼들 (업로드, 다운로드)
             Row(
               children: [
                 ElevatedButton(
@@ -39,7 +41,6 @@ class MainPage extends ConsumerWidget {
                       final selectedFilePath = result.files.single.path;
                       if (selectedFilePath != null) {
                         print(selectedFilePath);
-                        // 2. ViewModel 통해 업로드
                         ref.read(fileViewModelProvider.notifier).uploadFile(selectedFilePath);
                       }
                     }
@@ -56,8 +57,9 @@ class MainPage extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 16),
-
-            // 파일 목록
+            Divider(color: Colors.grey),
+            const SizedBox(height: 16),
+            Text('서버에 등록된 파일'),
             Expanded(
               child: files.isEmpty
                   ? const Center(child: Text('서버에 등록된 파일이 없습니다.'))
@@ -65,15 +67,31 @@ class MainPage extends ConsumerWidget {
                       itemCount: files.length,
                       itemBuilder: (context, index) {
                         final file = files[index];
+                        final isSelected = selectedFiles.value.contains(file.filePath);
 
                         return ListTile(
+                          leading: Checkbox(
+                            value: isSelected,
+                            onChanged: (bool? value) {
+                              if (value == true) {
+                                selectedFiles.value = {...selectedFiles.value, file.filePath};
+                              } else {
+                                selectedFiles.value = {...selectedFiles.value}..remove(file.filePath);
+                              }
+                            },
+                          ),
                           title: Text(file.fileName),
                           subtitle: Text('${(file.fileSize / 1024 / 1024).toStringAsFixed(2)} MB'),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () {
-                              ref.read(fileViewModelProvider.notifier).deleteFile(file.filePath);
-                            },
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.download),
+                                onPressed: () {
+                                  ref.read(fileViewModelProvider.notifier).downloadFile(file.filePath);
+                                },
+                              ),
+                            ]
                           ),
                         );
                       },
