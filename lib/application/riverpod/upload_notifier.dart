@@ -1,7 +1,9 @@
 // lib/application/riverpod/upload_notifier.dart
 import 'dart:io';
 import 'dart:math';
+import 'package:filenori_client/application/riverpod/providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:filenori_client/domain/usecases/upload_file_usecase.dart';
 
 class UploadState {
   final bool isUploading;
@@ -31,7 +33,9 @@ class UploadState {
 }
 
 class UploadNotifier extends StateNotifier<UploadState> {
-  UploadNotifier() : super(UploadState.initial());
+  final UploadFileUseCase uploadFileUseCase;
+
+  UploadNotifier(this.uploadFileUseCase) : super(UploadState.initial());
 
   Future<void> uploadFile(File file) async {
     // 3~7초 사이의 랜덤 시간 선택
@@ -59,6 +63,9 @@ class UploadNotifier extends StateNotifier<UploadState> {
     state = state.copyWith(progress: 1.0);
     await Future.delayed(const Duration(milliseconds: 500));
     state = UploadState.initial();
+
+    // 실제 파일 업로드 실행
+    await uploadFileUseCase(file);
   }
 
   void initUpload(File file) {
@@ -74,8 +81,8 @@ class UploadNotifier extends StateNotifier<UploadState> {
   }
 }
 
-// Provider for the UploadNotifier
-final uploadNotifierProvider =
-    StateNotifierProvider<UploadNotifier, UploadState>((ref) {
-  return UploadNotifier();
+// Provider
+final uploadNotifierProvider = StateNotifierProvider<UploadNotifier, UploadState>((ref) {
+  final useCase = ref.watch(uploadFileUseCaseProvider);
+  return UploadNotifier(useCase);
 });
