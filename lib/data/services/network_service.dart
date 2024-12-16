@@ -133,12 +133,18 @@ class NetworkService {
       await socket.flush();
 
       final response = await _waitForResponse(socket);
-      final fileList = jsonDecode(response) as List<dynamic>;
-      final files = fileList.map((file) => File(file as String)).toList();
-      return files;
+      print('File list response: $response');
+      
+      final Map<String, dynamic> responseData = jsonDecode(response);
+      if (responseData['status'] == 'success' && responseData['files'] is List) {
+        final fileList = responseData['files'] as List<dynamic>;
+        return fileList.map((filePath) => File(filePath as String)).toList();
+      }
+      
+      return [];
     } catch (e) {
-      print('Error occurred: $e');
-      await dispose(); // 소켓을 재설정
+      print('Error getting file list: $e');
+      await dispose();
       return [];
     }
   }
