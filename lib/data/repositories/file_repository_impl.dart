@@ -33,4 +33,9 @@ class FileRepositoryImpl implements FileRepository {
     //   pieces: fileEntity.pieces.map((piece) => piece.copyWith(isUploaded: true)).toList(),);
     await networkService.uploadPiece(fileName: file.path, pieceIndex: 0, data: file);
   }
+
+  @override
+  Future<List<File>> getFileList() async {
+    return await networkService.getFileList();
+  }
 }

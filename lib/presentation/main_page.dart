@@ -13,10 +13,7 @@ class MainPage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
 
     // TODO: getFileList 결과값으로 대체
-    // final files = ref.watch(fileViewModelProvider);
-    final files = [
-      FileInfoState(fileName: 'test1', filePath: 'test1', fileSize: 1024),
-    ];
+    final files = ref.watch(fileViewModelProvider);
     final uploadState = ref.watch(uploadNotifierProvider);
     final selectedFiles = useState<Set<String>>({});
 
@@ -91,7 +88,7 @@ class MainPage extends HookConsumerWidget {
                                   ref.read(fileViewModelProvider.notifier).downloadFile(file.filePath);
                                 },
                               ),
-                            ]
+                            ],
                           ),
                         );
                       },
