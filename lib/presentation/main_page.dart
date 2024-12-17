@@ -14,19 +14,19 @@ class MainPage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
 
     // TODO: getFileList 결과값으로 대체
-    // final files = ref.watch(fileViewModelProvider);
-    final files = [
-      FileInfoState(
-        fileName: 'test1.txt',
-        filePath: 'test1.txt',
-        fileSize: 1.0,
-      ),
-      FileInfoState(
-        fileName: 'test2.txt',
-        filePath: 'test2.txt',
-        fileSize: 2.0,
-      ),
-    ];
+    final files = ref.watch(fileViewModelProvider);
+    // final files = [
+    //   FileInfoState(
+    //     fileName: 'test1.txt',
+    //     filePath: 'test1.txt',
+    //     fileSize: 1.0,
+    //   ),
+    //   FileInfoState(
+    //     fileName: 'test2.txt',
+    //     filePath: 'test2.txt',
+    //     fileSize: 2.0,
+    //   ),
+    // ];
     final uploadState = ref.watch(uploadNotifierProvider);
     final downloadState = ref.watch(downloadNotifierProvider);
     final selectedFiles = useState<Set<String>>({});
@@ -221,11 +221,24 @@ class MainPage extends HookConsumerWidget {
                                           ? SizedBox(
                                               width: 24,
                                               height: 24,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                valueColor: AlwaysStoppedAnimation<Color>(
-                                                  Colors.blue[700]!,
-                                                ),
+                                              child: Stack(
+                                                alignment: Alignment.center,
+                                                children: [
+                                                  CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                                      Colors.blue[700]!,
+                                                    ),
+                                                  ),
+                                                  Tooltip(
+                                                    message: '다운로드 중...\nIP: ${downloadState.getDownloadIP(file.filePath)}',
+                                                    child: const Icon(
+                                                      Icons.downloading,
+                                                      size: 16,
+                                                      color: Colors.blue,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             )
                                           : Icon(

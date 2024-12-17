@@ -2,27 +2,55 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:filenori_client/domain/entities/piece_entity.dart';
 
 class NetworkService {
   Socket? _socket;
+  final _socketCompleter = Completer<Socket>();
+  bool _isConnecting = false;
   bool _isSocketClosed = true;
   StreamSubscription? _subscription;
   final _responseController = StreamController<String>.broadcast();
 
+  Future<void> dispose() async {
+    if (_socket != null) {
+      await _socket!.close();
+      _socket = null;
+      _isSocketClosed = true;
+    }
+  }
+
   Future<Socket> _getSocket() async {
-    if (_socket == null || _isSocketClosed) {
+    if (_socket != null && !_isSocketClosed) {
+      return _socket!;
+    }
+
+    if (_isConnecting) {
+      return _socketCompleter.future;
+    }
+
+    try {
+      _isConnecting = true;
       _socket = await Socket.connect(
         dotenv.get('SERVER_URI', fallback: 'localhost'),
         int.parse(dotenv.get('SERVER_PORT', fallback: '12345')),
       );
+      
+      if (!_socketCompleter.isCompleted) {
+        _socketCompleter.complete(_socket);
+      }
+      
       _isSocketClosed = false;
+      _isConnecting = false;
+      
       _socket!.done.then((_) {
         _isSocketClosed = true;
         _subscription?.cancel();
         _subscription = null;
       });
+      
       print('Connected to: ${_socket!.remoteAddress}:${_socket!.remotePort}');
 
       // 소켓 응답 리스너 설정
@@ -42,19 +70,17 @@ class NetworkService {
         },
         cancelOnError: false,
       );
-    }
-    return _socket!;
-  }
-
-  Future<void> dispose() async {
-    if (_socket != null && !_isSocketClosed) {
-      await _socket!.close();
+      return _socket!;
+    } catch (e) {
+      _isConnecting = false;
       _isSocketClosed = true;
-      _socket = null;
+      if (!_socketCompleter.isCompleted) {
+        _socketCompleter.completeError(e);
+      }
+      rethrow;
     }
   }
-
-  Future<String> _waitForResponse(Socket socket) async {
+      Future<String> _waitForResponse(Socket socket) async {
     try {
       final response = await _responseController.stream.first.timeout(
         Duration(seconds: 30),
@@ -68,6 +94,38 @@ class NetworkService {
       rethrow;
     }
   }
+
+// Future<String> _waitForResponse(Socket socket) async {
+//   try {
+//     final completer = Completer<String>();
+//     final subscription = socket
+//         .transform(StreamTransformer<Uint8List, String>.fromHandlers(
+//           handleData: (data, sink) {
+//             sink.add(utf8.decode(data));
+//           },
+//         ))
+//         .transform(const LineSplitter())
+//         .listen(
+//           (data) {
+//             if (!completer.isCompleted) {
+//               completer.complete(data);
+//             }
+//           },
+//           onError: (error) {
+//             if (!completer.isCompleted) {
+//               completer.completeError(error);
+//             }
+//           },
+//         );
+
+//     final response = await completer.future;
+//     await subscription.cancel();
+//     return response;
+//   } catch (e) {
+//     print('Error waiting for response: $e');
+//     rethrow;
+//   }
+// }
 
   Future<bool> uploadPiece({
     required String fileName,
@@ -95,20 +153,20 @@ class NetworkService {
       print("Metadata sent: $metadataJson");
 
       // // 메타데이터 응답 대기
-      // final metadataResponse = await _waitForResponse(socket);
-      // print("Metadata response received: $metadataResponse");
+      final metadataResponse = await _waitForResponse(socket);
+      print("Metadata response received: $metadataResponse");
 
-      // if (!metadataResponse.contains('OK')) {
-      //   print('Metadata upload failed: $metadataResponse');
-      //   return false;
-      // }
+      if (!metadataResponse.contains('OK')) {
+        print('Metadata upload failed: $metadataResponse');
+        return false;
+      }
 
-      // // 파일 데이터 한 번에 전송
-      // socket.add(bytes);
-      // await socket.flush();
-      // // socket.write("<END>");
-      // // await socket.flush();
-      // print("All data sent to server");
+      // 파일 데이터 한 번에 전송
+      socket.add(bytes);
+      await socket.flush();
+      socket.write("<END>");
+      await socket.flush();
+      print("All data sent to server");
 
       // 파일 전송 응답 대기
       final uploadResponse = await _waitForResponse(socket);
@@ -138,7 +196,7 @@ class NetworkService {
       final Map<String, dynamic> responseData = jsonDecode(response);
       if (responseData['status'] == 'success' && responseData['files'] is List) {
         final fileList = responseData['files'] as List<dynamic>;
-        return fileList.map((filePath) => File(filePath as String)).toList();
+        return fileList.map((filePath) => File(filePath['name'] as String)).toList();
       }
       
       return [];
@@ -158,9 +216,15 @@ class NetworkService {
       });
       socket.write(requestJson + "\n");
       await socket.flush();
+
       final response = await _waitForResponse(socket);
       print('Download response: $response');
-      return response;
+      
+      final responseData = jsonDecode(response);
+      if (responseData['status'] == 'success' && responseData['ip'] != null) {
+        return responseData['ip'] as String;
+      }
+      return '';
     } catch (e) {
       print('Error downloading file: $e');
       await dispose();

@@ -42,6 +42,7 @@ class FileViewModel extends StateNotifier<List<FileInfoState>> {
   Future<void> refreshFileList() async {
     try {
       final files = await getFileListUseCase();
+      print(files);
       state = files.map((file) => FileInfoState(
         fileName: file.path.split('/').last,
         filePath: file.path,
@@ -60,7 +61,8 @@ class FileViewModel extends StateNotifier<List<FileInfoState>> {
   }
 
   Future<void> downloadFile(String filePath) async {
-  await downloadNotifier.downloadFile(filePath);
+    final ip = await downloadFileUseCase(filePath);
+    await downloadNotifier.downloadFile(filePath, ip);
   }
 }
 
