@@ -38,4 +38,9 @@ class FileRepositoryImpl implements FileRepository {
   Future<List<File>> getFileList() async {
     return await networkService.getFileList();
   }
+
+  @override
+  Future<String> downloadFile(String filePath) async {
+    return await networkService.downloadFile(filePath);
+  }
 }

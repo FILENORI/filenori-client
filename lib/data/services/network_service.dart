@@ -148,4 +148,23 @@ class NetworkService {
       return [];
     }
   }
+
+  Future<String> downloadFile(String filePath) async {
+    try {
+      final socket = await _getSocket();
+      final requestJson = jsonEncode({
+        'action': 'download',
+        'file_path': filePath,
+      });
+      socket.write(requestJson + "\n");
+      await socket.flush();
+      final response = await _waitForResponse(socket);
+      print('Download response: $response');
+      return response;
+    } catch (e) {
+      print('Error downloading file: $e');
+      await dispose();
+      return '';
+    }
+  }
 }

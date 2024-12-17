@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:filenori_client/application/riverpod/upload_notifier.dart';
+import 'package:filenori_client/application/riverpod/download_notifier.dart';
 import 'package:filenori_client/presentation/viewmodels/file_viewmodel.dart';
 
 import 'package:file_picker/file_picker.dart';
@@ -13,8 +14,21 @@ class MainPage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
 
     // TODO: getFileList 결과값으로 대체
-    final files = ref.watch(fileViewModelProvider);
+    // final files = ref.watch(fileViewModelProvider);
+    final files = [
+      FileInfoState(
+        fileName: 'test1.txt',
+        filePath: 'test1.txt',
+        fileSize: 1.0,
+      ),
+      FileInfoState(
+        fileName: 'test2.txt',
+        filePath: 'test2.txt',
+        fileSize: 2.0,
+      ),
+    ];
     final uploadState = ref.watch(uploadNotifierProvider);
+    final downloadState = ref.watch(downloadNotifierProvider);
     final selectedFiles = useState<Set<String>>({});
 
     return Scaffold(
@@ -198,12 +212,31 @@ class MainPage extends HookConsumerWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: Icon(
-                                    Icons.download,
-                                    color: Colors.grey[600],
-                                  ),
+                                  icon: downloadState.isDownloaded(file.filePath)
+                                      ? Icon(
+                                          Icons.check_circle,
+                                          color: Colors.green[600],
+                                        )
+                                      : downloadState.isDownloading(file.filePath)
+                                          ? SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor: AlwaysStoppedAnimation<Color>(
+                                                  Colors.blue[700]!,
+                                                ),
+                                              ),
+                                            )
+                                          : Icon(
+                                              Icons.download,
+                                              color: Colors.grey[600],
+                                            ),
                                   onPressed: () {
-                                    // ref.read(fileViewModelProvider.notifier).downloadFile(file.filePath);
+                                    if (!downloadState.isDownloading(file.filePath) &&
+                                        !downloadState.isDownloaded(file.filePath)) {
+                                      ref.read(fileViewModelProvider.notifier).downloadFile(file.filePath);
+                                    }
                                   },
                                 ),
                               ],

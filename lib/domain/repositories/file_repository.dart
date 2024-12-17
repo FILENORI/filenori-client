@@ -9,4 +9,5 @@ abstract class FileRepository {
   // Future<FileEntity> uploadFilePieces(FileEntity fileEntity);
   Future<void> uploadFilePieces(File file);
   Future<List<File>> getFileList();
+  Future<String> downloadFile(String filePath);
 }

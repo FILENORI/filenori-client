@@ -6,6 +6,7 @@ import 'package:filenori_client/data/services/local_file_service.dart';
 import 'package:filenori_client/data/services/network_service.dart';
 import 'package:filenori_client/domain/repositories/file_repository.dart';
 import 'package:filenori_client/domain/usecases/upload_file_usecase.dart';
+import 'package:filenori_client/domain/usecases/download_file_usecase.dart';
 
 // 1. Service들
 final localFileServiceProvider = Provider<LocalFileService>((ref) {
@@ -35,4 +36,9 @@ final getFileListUseCaseProvider = Provider<GetFileListUseCase>((ref) {
   return GetFileListUseCase(
     ref.watch(fileRepositoryProvider),
   );
+});
+
+final downloadFileUseCaseProvider = Provider<DownloadFileUseCase>((ref) {
+  final repository = ref.watch(fileRepositoryProvider);
+  return DownloadFileUseCase(repository);
 });
